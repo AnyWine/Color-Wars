@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Base Color Wars
 
 Color Wars / Pixel Wars prototype for Base built with `Next.js`, `wagmi`, and `viem`.
@@ -91,3 +92,7 @@ This scaffold follows the Base docs direction you shared:
 
 - `Build an app on Base`: `Next.js + wagmi + viem`
 - `Resources for AI agents`: useful if you want to wire docs-aware agents or MCP-assisted build workflows next
+=======
+# Color-Wars
+Pixel Wars game for Base app
+>>>>>>> 9070aaacfa5d6f86e93ff1830c48e1c7cce73871
