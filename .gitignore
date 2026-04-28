@@ -1,0 +1,7 @@
+.next
+node_modules
+.npm-cache
+*.log
+tsconfig.tsbuildinfo
+.DS_Store
+Thumbs.db

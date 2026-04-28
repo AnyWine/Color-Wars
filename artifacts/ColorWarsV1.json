@@ -1,0 +1,109 @@
+{
+  "contractName": "ColorWarsV1",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "packId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "pixels",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "name": "PixelsPurchased",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "packId",
+          "type": "uint256"
+        }
+      ],
+      "name": "buyPixels",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "packs",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "pixels",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "price",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        }
+      ],
+      "name": "withdraw",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "bytecode": "0x608060405234801561000f575f5ffd5b505f80546001600160a01b03191633178155604080518082018252606481526601c6bf526340006020808301918252600180865280825292517fcc69885fda6bcc1a4ace058b4a62bf5e179ea78fd58a1ccd71c22cc9b688792f5590517fcc69885fda6bcc1a4ace058b4a62bf5e179ea78fd58a1ccd71c22cc9b688793055825180840184526101f481526608e1bc9bf040008183019081526002865283835290517fd9d16d34ffb15ba3a3d852f0d403e2ce1d691fb54de27ac87cd2f993f3ec330f55517fd9d16d34ffb15ba3a3d852f0d403e2ce1d691fb54de27ac87cd2f993f3ec33105582518084019093526103e883526611c37937e08000838201908152600390945252517f7dfe757ecd65cbd7922a9c0161e935dd7fdbcc0e999689c7d31633896b1fc60b55517f7dfe757ecd65cbd7922a9c0161e935dd7fdbcc0e999689c7d31633896b1fc60c556102e48061016a5f395ff3fe608060405260043610610041575f3560e01c806348c88c481461004c57806351cff8d9146100615780638da5cb5b14610080578063b84c1392146100bb575f5ffd5b3661004857005b5f5ffd5b61005f61005a36600461026a565b610102565b005b34801561006c575f5ffd5b5061005f61007b366004610281565b6101ef565b34801561008b575f5ffd5b505f5461009e906001600160a01b031681565b6040516001600160a01b0390911681526020015b60405180910390f35b3480156100c6575f5ffd5b506100ed6100d536600461026a565b600160208190525f9182526040909120805491015482565b604080519283526020830191909152016100b2565b5f8181526001602081815260409283902083518085019094528054808552920154908301526101675760405162461bcd60e51b815260206004820152600c60248201526b496e76616c6964207061636b60a01b60448201526064015b60405180910390fd5b806020015134146101a65760405162461bcd60e51b81526020600482015260096024820152680aee4dedcce408aa8960bb1b604482015260640161015e565b8051604080518481526020810192909252349082015233907fe06b0b1479ac5bf9bbd437f9a395658feec321f905ecbb7771f97fd533b47b4d9060600160405180910390a25050565b5f546001600160a01b031633146102345760405162461bcd60e51b81526020600482015260096024820152682737ba1037bbb732b960b91b604482015260640161015e565b6040516001600160a01b038216904780156108fc02915f818181858888f19350505050158015610266573d5f5f3e3d5ffd5b5050565b5f6020828403121561027a575f5ffd5b5035919050565b5f60208284031215610291575f5ffd5b81356001600160a01b03811681146102a7575f5ffd5b939250505056fea26469706673582212200ec302dc63e33e45ba69903ef1adee4132d3f3cd8e446712a3010ead6e6db56c64736f6c63430008220033"
+}
