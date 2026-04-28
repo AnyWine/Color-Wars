@@ -5,14 +5,14 @@ Color Wars / Pixel Wars prototype for Base built with `Next.js`, `wagmi`, and `v
 
 ## What is implemented
 
-- 3 teams: `BLUE`, `FUCHSIA`, `YELLOW`
-- Shared `300 x 300` pixel canvas
+- 3 teams: `BLUE`, `PINK`, `YELLOW`
+- Shared `200 x 200` pixel canvas
 - Wallet connect UI for injected wallets, MetaMask, and Base Wallet via wagmi connectors
 - Sign-message auth flow before joining a team
 - Pixel packs bought through `ColorWarsV1` on Base Sepolia
 - Energy regen, dynamic energy cost by CPS, cooldown, and anti-spam cap
 - Burst mode with reduced energy cost and disabled cooldown checks
-- Round loop: `2h live + 30m break`
+- Round loop: `20min + 5m break`
 - Winner calculation from canvas control
 - Reward accrual for the winning team based on round contribution share
 - Reward claim endpoint for MVP accounting
