@@ -44,7 +44,7 @@ export const COOLDOWN_EXIT_ENERGY = 40;
 export const BASE_COOLDOWN_CPS_THRESHOLD = 9;
 export const MAX_CPS = 12;
 
-export const ROUND_DURATION_MS = 15 * 60 * 1000;
+export const ROUND_DURATION_MS = 20 * 60 * 1000;
 export const BREAK_DURATION_MS = 5 * 60 * 1000;
 
 export const PRIZE_POOL_SHARE = 0.3;
