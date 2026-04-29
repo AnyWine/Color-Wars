@@ -16,6 +16,13 @@ const NO_CACHE_HEADERS = {
 export async function GET() {
   return NextResponse.json(
     {
+      accountAssociation: {
+        header:
+          "eyJmaWQiOjQ1ODgyNSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDNEOTIyOEZkMmM0Q0ZGZmI5QkQwMTU1OGUxMDMwN0E4NmVBNDBDQjIifQ",
+        payload: "eyJkb21haW4iOiJjb2xvci13YXJzLWNoaS52ZXJjZWwuYXBwIn0",
+        signature:
+          "hpzuIRZIgF9SOlnsdv8mfOpeM+d1hMn+QAeiFyIaWZVDO0akBgg1IphokHJPec5lwbzzkRfngm9u6zzaWiCkSBs=",
+      },
       miniapp: {
         version: "1",
         name: "Color Wars",

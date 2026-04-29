@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { Providers } from "@/app/providers";
 import "@/app/globals.css";
@@ -31,9 +31,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
+  applicationName: TITLE,
   openGraph: {
     type: "website",
     url: SITE_URL,
+    siteName: TITLE,
     title: TITLE,
     description: DESCRIPTION,
     images: [
@@ -56,6 +58,10 @@ export const metadata: Metadata = {
     "fc:miniapp": miniAppEmbed,
     "fc:frame": miniAppEmbed,
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#F0E8D8",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
