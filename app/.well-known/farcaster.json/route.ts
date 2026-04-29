@@ -8,11 +8,6 @@ export const dynamic = "force-static";
 
 export async function GET() {
   return NextResponse.json({
-    accountAssociation: {
-      header: "",
-      payload: "",
-      signature: "",
-    },
     miniapp: {
       version: "1",
       name: "Color Wars",
@@ -24,6 +19,7 @@ export async function GET() {
       splashBackgroundColor: "#F0E8D8",
       homeUrl: SITE_URL,
       heroImageUrl: `${SITE_URL}/og.png`,
+      screenshotUrls: [`${SITE_URL}/og.png`],
       tagline: "Pixel territory on Base",
       ogTitle: "Base Color Wars",
       ogDescription:
