@@ -37,7 +37,9 @@ import type { GameSnapshot, PublicUserState, TeamColor } from "@/lib/types";
 
 const NOTIFICATION_LIMIT = 12;
 const STATE_POLL_MS = 2_000;
-const OPTIMISTIC_PIXEL_TTL_MS = 4_000;
+// Optimistic pixel TTL — long enough for Redis persistence + 2s polling to
+// catch up on the next snapshot without the cell blinking out mid-round-trip.
+const OPTIMISTIC_PIXEL_TTL_MS = 15_000;
 
 async function postJson<T>(url: string, payload: Record<string, unknown>) {
   const response = await fetch(url, {
