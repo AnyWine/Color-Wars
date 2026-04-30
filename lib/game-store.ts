@@ -293,7 +293,10 @@ export const gameStore = {
   authenticate(walletAddress: string, color: TeamColor, message: string) {
     syncRound();
     const user = ensureUser(walletAddress, color);
-    user.color = user.color ?? color;
+    // Always overwrite with the team the user just signed for. Do not fall
+    // back to the previously stored color — the session cookie is the single
+    // source of truth for the user's current team.
+    user.color = color;
     user.lastAuthMessage = message;
     return snapshotUser(user, Date.now());
   },
@@ -323,7 +326,7 @@ export const gameStore = {
     };
   },
 
-  paint(walletAddress: string, x: number, y: number): PaintResult {
+  paint(walletAddress: string, x: number, y: number, sessionTeam: TeamColor): PaintResult {
     const now = Date.now();
     syncRound(now);
 
@@ -340,9 +343,11 @@ export const gameStore = {
       return { ok: false, message: "Sign in with your wallet first." };
     }
 
-    if (!user.color) {
-      return { ok: false, message: "Choose a team before painting." };
-    }
+    // Authoritative team comes from the signed session cookie. Ignore any
+    // stale stored color and any client-supplied value — the server always
+    // paints the team the user signed for.
+    const color = sessionTeam;
+    user.color = color;
 
     reconcileEnergy(user, now);
     pruneRecentPaints(user, now);
@@ -394,7 +399,7 @@ export const gameStore = {
     for (const [targetX, targetY] of targets) {
       const index = indexForPixel(targetX, targetY);
       const previousColorId = state.canvas[index];
-      const nextColorId = COLOR_TO_ID[user.color];
+      const nextColorId = COLOR_TO_ID[color];
 
       if (previousColorId > 0) {
         const previousColor = ID_TO_COLOR[previousColorId as keyof typeof ID_TO_COLOR];
@@ -404,7 +409,7 @@ export const gameStore = {
       state.canvas[index] = nextColorId;
       state.owners[index] = user.walletAddress;
       state.updatedAt[index] = now;
-      state.round.teamPixels[user.color] += 1;
+      state.round.teamPixels[color] += 1;
       addPlacementForUser(user);
     }
 
