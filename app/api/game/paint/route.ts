@@ -4,6 +4,7 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { hydrateOnce, markDirty } from "@/lib/store/persist";
 
 type PaintPayload = {
   x?: unknown;
@@ -33,7 +34,10 @@ export async function POST(request: NextRequest) {
       !Number.isInteger(x) ||
       !Number.isInteger(y)
     ) {
-      return NextResponse.json({ ok: false, message: "Pixel coordinates must be integers." }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, message: "Pixel coordinates must be integers." },
+        { status: 400 },
+      );
     }
 
     if (!consumeToken(`paint:${session.wallet}`, 12, 10)) {
@@ -41,7 +45,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Too many paint requests." }, { status: 429 });
     }
 
+    await hydrateOnce();
     const result = gameStore.paint(session.wallet, x, y);
+    if (result.ok) markDirty();
+
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (error) {
     logger.error("paint_unexpected", { error: (error as Error)?.message });
