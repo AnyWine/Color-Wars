@@ -795,8 +795,8 @@ button { font: inherit; }
 }
 
 .notification {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 6px;
   padding: 4px 8px;
   background: var(--panel-soft);
@@ -804,15 +804,23 @@ button { font: inherit; }
   font-family: "VT323", monospace;
   font-size: 14px;
   color: var(--ink);
+  flex-shrink: 0;
 }
 
 .notification-dot {
   width: 8px;
   height: 8px;
   border: 2px solid var(--line);
+  flex-shrink: 0;
+  margin-top: 4px;
 }
 
-.notification-text { line-height: 1; }
+.notification-text {
+  line-height: 1.2;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 
 /* ============================================================ */
 /* Chat — compact, dense                                        */
@@ -1736,8 +1744,7 @@ button { font: inherit; }
     box-shadow: var(--pixel-shadow);
     pointer-events: none;
   }
-  .notifications-window:empty,
-  .notifications-window[data-empty="true"] { display: none; }
+  .notifications-window--empty { display: none; }
   .notifications-window .win-header { display: none; }
   .notifications-window .win-body {
     padding: 4px 6px;

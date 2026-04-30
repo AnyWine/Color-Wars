@@ -35,7 +35,8 @@ import { ACTIVE_CONTRACT, ACTIVE_CONTRACT_ABI, isContractConfigured, targetChain
 import { BASE_ENERGY_COST, BURST, CANVAS_WIDTH, COLOR_TO_ID, PACKS } from "@/lib/game-config";
 import type { GameSnapshot, PublicUserState, TeamColor } from "@/lib/types";
 
-const NOTIFICATION_LIMIT = 12;
+const NOTIFICATION_LIMIT = 10;
+const NOTIFICATION_MAX_TEXT_LENGTH = 120;
 const STATE_POLL_MS = 2_000;
 const OPTIMISTIC_PIXEL_TTL_MS = 4_000;
 
@@ -92,7 +93,10 @@ export function GameShell() {
     queryKey: ["game-state", walletAddress],
     queryFn: async () => {
       const params = walletAddress ? `?wallet=${walletAddress}` : "";
-      const response = await fetch(`/api/game/state${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/game/state${params}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       if (!response.ok) throw new Error("Unable to load game state.");
       return (await response.json()) as GameSnapshot;
     },
@@ -176,15 +180,22 @@ export function GameShell() {
   const totalPlayers = snapshot?.totalUsers ?? 0;
 
   const pushNotification = useCallback((entry: Omit<NotificationEntry, "id">) => {
+    // Cap text length so a giant error message (RPC failure dumps, full
+    // stack traces) can't blow out the notifications panel.
+    const trimmed =
+      entry.text.length > NOTIFICATION_MAX_TEXT_LENGTH
+        ? entry.text.slice(0, NOTIFICATION_MAX_TEXT_LENGTH - 1).trimEnd() + "…"
+        : entry.text;
     setNotifications((current) => {
       const next: NotificationEntry = {
         ...entry,
+        text: trimmed,
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       };
       const merged = [next, ...current];
       return merged.slice(0, NOTIFICATION_LIMIT);
     });
-    setLatestActivity(entry.text);
+    setLatestActivity(trimmed);
   }, []);
 
   useEffect(() => {
@@ -273,12 +284,24 @@ export function GameShell() {
     const message = `Base Color Wars sign-in\nwallet:${walletAddress}\nteam:${team}\nreason:${reason}\nnonce:${nonce}\ntime:${new Date().toISOString()}`;
     const signature = await signMessageAsync({ message });
 
-    await postJson("/api/game/auth", {
+    const result = await postJson<{ user?: PublicUserState }>("/api/game/auth", {
       walletAddress,
       color: team,
       message,
       signature,
     });
+
+    // Patch the freshly-authenticated user into the cache directly. Without
+    // this, the next paint click can fire before the polling cycle catches up
+    // (or while the lambda's after()-scheduled save is still in flight) and
+    // sees signedUser.color out of sync with selectedColor — which triggers a
+    // re-sign on every click in a loop.
+    if (result.user && walletAddress) {
+      queryClient.setQueryData<GameSnapshot | undefined>(
+        ["game-state", walletAddress],
+        (current) => (current ? { ...current, user: result.user! } : current),
+      );
+    }
   };
 
   const openConnectModal = () => {

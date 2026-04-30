@@ -18,10 +18,14 @@ type NotificationsWindowProps = {
 };
 
 export function NotificationsWindow({ entries }: NotificationsWindowProps) {
-  if (entries.length === 0) return null;
-
+  // Always render the panel so the canvas above doesn't reflow when the list
+  // is empty. The list itself just stays empty.
   return (
-    <WindowPanel title="NOTIFICATIONS" tone="blue" className="notifications-window">
+    <WindowPanel
+      title="NOTIFICATIONS"
+      tone="blue"
+      className={`notifications-window${entries.length === 0 ? " notifications-window--empty" : ""}`}
+    >
       <ul className="notification-list">
         {entries.map((entry) => (
           <li key={entry.id} className={`notification notification--${entry.kind}`}>

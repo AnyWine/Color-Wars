@@ -293,7 +293,12 @@ export const gameStore = {
   authenticate(walletAddress: string, color: TeamColor, message: string) {
     syncRound();
     const user = ensureUser(walletAddress, color);
-    user.color = user.color ?? color;
+    // The user just produced a fresh signed message picking this team. Honour
+    // it as their authoritative team for subsequent paints. Previously this
+    // was `user.color ?? color`, which made the first chosen team sticky and
+    // caused yellow-painted pixels to immediately flip back to the user's
+    // original team color via polling.
+    user.color = color;
     user.lastAuthMessage = message;
     return snapshotUser(user, Date.now());
   },
