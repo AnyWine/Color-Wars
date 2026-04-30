@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("STATE CALLED");
     await refreshFromPersistence();
     const session = verifySession(request.cookies.get(SESSION_COOKIE)?.value);
+    console.log("SESSION:", session);
     const walletAddress = session?.wallet ?? request.nextUrl.searchParams.get("wallet");
     const snapshot = gameStore.getSnapshot(walletAddress);
     return NextResponse.json(snapshot, {

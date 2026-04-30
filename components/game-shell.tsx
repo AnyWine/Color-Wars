@@ -44,6 +44,7 @@ async function postJson<T>(url: string, payload: Record<string, unknown>) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    credentials: "include",
   });
 
   const data = (await response.json()) as T & { ok?: boolean; message?: string };
@@ -92,7 +93,10 @@ export function GameShell() {
     queryKey: ["game-state", walletAddress],
     queryFn: async () => {
       const params = walletAddress ? `?wallet=${walletAddress}` : "";
-      const response = await fetch(`/api/game/state${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/game/state${params}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
       if (!response.ok) throw new Error("Unable to load game state.");
       return (await response.json()) as GameSnapshot;
     },
@@ -263,7 +267,7 @@ export function GameShell() {
 
     const nonceResponse = await fetch(`/api/game/auth/nonce?wallet=${walletAddress}`, {
       cache: "no-store",
-      credentials: "same-origin",
+      credentials: "include",
     });
     if (!nonceResponse.ok) {
       throw new Error("Could not start sign-in.");
@@ -359,10 +363,9 @@ export function GameShell() {
     try {
       setBusyKey("paint");
 
-      if (!signedUser || signedUser.color !== selectedColor) {
-        await syncSignedSession(selectedColor, "signin");
-      }
-
+      // Do NOT re-auth on every paint click. The session cookie set by the
+      // initial team sign-in carries the team — the server reads it from the
+      // cookie. Wallet signature is requested exactly once at sign-in.
       const result = await postJson<{ message: string; user?: PublicUserState }>(
         "/api/game/paint",
         { x, y },
@@ -431,7 +434,8 @@ export function GameShell() {
       });
 
       await publicClient.waitForTransactionReceipt({ hash });
-      await syncSignedSession(selectedColor, "purchase");
+      // Do NOT re-sign on purchase. The session cookie from initial sign-in
+      // is reused for the server-side verification call below.
 
       // Server verifies the on-chain receipt (PixelsPurchased event) and
       // returns the updated user with the new pixel balance. Patch into
@@ -480,10 +484,8 @@ export function GameShell() {
     try {
       setBusyKey("burst");
 
-      if (!signedUser || signedUser.color !== selectedColor) {
-        await syncSignedSession(selectedColor, "signin");
-      }
-
+      // Do NOT re-sign on burst. The initial sign-in is enough — burst uses
+      // the existing session cookie.
       const hash = await sendTransactionAsync({
         to: ACTIVE_CONTRACT,
         value: parseEther(BURST.priceEth),

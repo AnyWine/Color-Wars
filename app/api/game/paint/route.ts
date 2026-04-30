@@ -13,7 +13,9 @@ type PaintPayload = {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("PAINT CALLED");
     const session = verifySession(request.cookies.get(SESSION_COOKIE)?.value);
+    console.log("SESSION:", session);
     if (!session) {
       return NextResponse.json({ ok: false, message: "Sign in first." }, { status: 401 });
     }
@@ -45,8 +47,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Too many paint requests." }, { status: 429 });
     }
 
+    console.log("PAINT COLOR:", session.color);
+
     await refreshFromPersistence();
-    const result = gameStore.paint(session.wallet, x, y);
+    const result = gameStore.paint(session.wallet, x, y, session.color);
     if (result.ok) markDirty();
 
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });

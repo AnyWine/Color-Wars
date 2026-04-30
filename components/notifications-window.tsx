@@ -18,8 +18,9 @@ type NotificationsWindowProps = {
 };
 
 export function NotificationsWindow({ entries }: NotificationsWindowProps) {
-  if (entries.length === 0) return null;
-
+  // Always render the container so it reserves its 140px slot and never
+  // causes a layout shift when the first notification arrives. Empty state
+  // is handled purely in CSS / markup.
   return (
     <WindowPanel title="NOTIFICATIONS" tone="blue" className="notifications-window">
       <ul className="notification-list">

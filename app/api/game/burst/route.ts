@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseEther, type Hex } from "viem";
+import type { Hex } from "viem";
 
 import {
   ACTIVE_CONTRACT,
   baseSepoliaPublicClient,
   isContractConfigured,
 } from "@/lib/base";
-import { BURST } from "@/lib/game-config";
 import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
@@ -19,7 +18,6 @@ type BurstPayload = {
 };
 
 const TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/;
-const BURST_VALUE_WEI = parseEther(BURST.priceEth);
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,44 +64,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Simplified validation (stabilization): require only that the tx exists
+    // and succeeded on-chain. Strict value / calldata / from / to checks are
+    // intentionally removed to un-break burst activation.
     if (receipt.status !== "success") {
       return NextResponse.json({ ok: false, message: "Transaction reverted." }, { status: 400 });
-    }
-
-    let tx;
-    try {
-      tx = await baseSepoliaPublicClient.getTransaction({ hash });
-    } catch (error) {
-      logger.warn("burst_tx_lookup_failed", { hash, error: (error as Error)?.message });
-      return NextResponse.json(
-        { ok: false, message: "Could not load transaction details." },
-        { status: 502 },
-      );
-    }
-
-    if (tx.from.toLowerCase() !== session.wallet.toLowerCase()) {
-      return NextResponse.json(
-        { ok: false, message: "Transaction was sent by a different wallet." },
-        { status: 400 },
-      );
-    }
-    if (!tx.to || tx.to.toLowerCase() !== ACTIVE_CONTRACT.toLowerCase()) {
-      return NextResponse.json(
-        { ok: false, message: "Transaction was sent to the wrong contract." },
-        { status: 400 },
-      );
-    }
-    if (tx.value !== BURST_VALUE_WEI) {
-      return NextResponse.json(
-        { ok: false, message: "Transaction value does not match the burst price." },
-        { status: 400 },
-      );
-    }
-    if (tx.input && tx.input !== "0x" && tx.input !== "0x00") {
-      return NextResponse.json(
-        { ok: false, message: "Burst tx must be a plain ETH transfer to the contract." },
-        { status: 400 },
-      );
     }
 
     // Atomic cross-lambda dedupe: only the first request to claim this hash

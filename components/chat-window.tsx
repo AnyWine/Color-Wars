@@ -39,7 +39,10 @@ export function ChatWindow({ walletAddress, selectedColor }: ChatWindowProps) {
     let cancelled = false;
     const load = async () => {
       try {
-        const response = await fetch("/api/chat", { cache: "no-store" });
+        const response = await fetch("/api/chat", {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!response.ok) return;
         const data = (await response.json()) as { messages: ChatMessage[] };
         if (!cancelled) setMessages(data.messages);
@@ -89,6 +92,7 @@ export function ChatWindow({ walletAddress, selectedColor }: ChatWindowProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: walletAddress, team: selectedColor, text }),
+        credentials: "include",
       });
       const data = (await response.json()) as { ok?: boolean; message?: ChatMessage | string };
       if (!response.ok) {
