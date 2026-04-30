@@ -85,4 +85,35 @@ export const redis = {
     ]);
     return typeof result === "string" ? result : null;
   },
+
+  /**
+   * Atomic compare-and-swap save: writes `payload` to `stateKey` and `nextVersion`
+   * to `versionKey` only if the version stored in Redis is strictly less than
+   * `nextVersion`. Returns the version that ended up stored. This prevents an
+   * older lambda's save from overwriting a newer lambda's state.
+   */
+  async setIfNewer(
+    stateKey: string,
+    versionKey: string,
+    payload: string,
+    nextVersion: number,
+  ): Promise<number> {
+    const result = await command([
+      "EVAL",
+      "local cur=tonumber(redis.call('GET',KEYS[2])) or 0; if cur >= tonumber(ARGV[2]) then return cur; end; redis.call('SET',KEYS[1],ARGV[1]); redis.call('SET',KEYS[2],ARGV[2]); return tonumber(ARGV[2]);",
+      2,
+      stateKey,
+      versionKey,
+      payload,
+      String(nextVersion),
+    ]);
+    return typeof result === "number" ? result : 0;
+  },
+
+  async getNumber(key: string): Promise<number | null> {
+    const result = await command(["GET", key]);
+    if (typeof result !== "string") return null;
+    const parsed = Number(result);
+    return Number.isFinite(parsed) ? parsed : null;
+  },
 };

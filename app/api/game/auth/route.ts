@@ -7,7 +7,7 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { issueSession } from "@/lib/session";
-import { hydrateOnce, markDirty } from "@/lib/store/persist";
+import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
 import type { TeamColor } from "@/lib/types";
 
 type AuthPayload = {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       return fail("Signature verification failed.", 401, body.walletAddress);
     }
 
-    await hydrateOnce();
+    await refreshFromPersistence();
     const user = gameStore.authenticate(body.walletAddress, body.color, body.message);
     markDirty();
     const { cookie } = issueSession({ wallet: body.walletAddress, color: body.color });

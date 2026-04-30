@@ -11,7 +11,7 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { hydrateOnce, markDirty } from "@/lib/store/persist";
+import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
 
 type BurstPayload = {
   txHash?: unknown;
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await hydrateOnce();
+    await refreshFromPersistence();
     const result = gameStore.activateBurstFromChain(session.wallet);
     if (result.ok) {
       processed.add(hash);
