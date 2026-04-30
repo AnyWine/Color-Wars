@@ -85,4 +85,82 @@ export const redis = {
     ]);
     return typeof result === "string" ? result : null;
   },
+
+  /**
+   * Atomic compare-and-swap save: writes `payload` to `stateKey` and `nextVersion`
+   * to `versionKey` only if the version stored in Redis is strictly less than
+   * `nextVersion`. Returns the version that ended up stored. This prevents an
+   * older lambda's save from overwriting a newer lambda's state.
+   */
+  async setIfNewer(
+    stateKey: string,
+    versionKey: string,
+    payload: string,
+    nextVersion: number,
+  ): Promise<number> {
+    const result = await command([
+      "EVAL",
+      "local cur=tonumber(redis.call('GET',KEYS[2])) or 0; if cur >= tonumber(ARGV[2]) then return cur; end; redis.call('SET',KEYS[1],ARGV[1]); redis.call('SET',KEYS[2],ARGV[2]); return tonumber(ARGV[2]);",
+      2,
+      stateKey,
+      versionKey,
+      payload,
+      String(nextVersion),
+    ]);
+    return typeof result === "number" ? result : 0;
+  },
+
+  async getNumber(key: string): Promise<number | null> {
+    const result = await command(["GET", key]);
+    if (typeof result !== "string") return null;
+    const parsed = Number(result);
+    return Number.isFinite(parsed) ? parsed : null;
+  },
+
+  /**
+   * Atomically read both keys in a single Lua call. Returns `[state, version]`.
+   * Used for hydration to avoid the race where state is read at version N and
+   * the version counter is then read at version N+1 (a concurrent save snuck
+   * in between).
+   */
+  async getStateAndVersion(
+    stateKey: string,
+    versionKey: string,
+  ): Promise<{ state: string | null; version: number }> {
+    const result = await command([
+      "EVAL",
+      "return {redis.call('GET',KEYS[1]), redis.call('GET',KEYS[2])};",
+      2,
+      stateKey,
+      versionKey,
+    ]);
+    if (!Array.isArray(result)) return { state: null, version: 0 };
+    const [rawState, rawVersion] = result as [unknown, unknown];
+    const version =
+      typeof rawVersion === "string" && Number.isFinite(Number(rawVersion))
+        ? Number(rawVersion)
+        : 0;
+    return {
+      state: typeof rawState === "string" ? rawState : null,
+      version,
+    };
+  },
+
+  /**
+   * Atomic claim of a one-shot key. Returns true if the key was just created
+   * (i.e. the caller is the first to claim it), false if another caller had
+   * already claimed it. Used to dedupe on-chain transaction hashes across
+   * lambda instances.
+   */
+  async claim(key: string, ttlSeconds: number): Promise<boolean> {
+    const result = await command([
+      "SET",
+      key,
+      "1",
+      "NX",
+      "EX",
+      String(ttlSeconds),
+    ]);
+    return result === "OK";
+  },
 };

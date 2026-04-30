@@ -4,7 +4,7 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { hydrateOnce, markDirty } from "@/lib/store/persist";
+import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
 
 type PaintPayload = {
   x?: unknown;
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Too many paint requests." }, { status: 429 });
     }
 
-    await hydrateOnce();
+    await refreshFromPersistence();
     const result = gameStore.paint(session.wallet, x, y);
     if (result.ok) markDirty();
 
