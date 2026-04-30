@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseEther } from "viem";
 import {
   useAccount,
@@ -32,10 +32,12 @@ import { TipsWindow } from "@/components/tips-window";
 import { TopBar } from "@/components/top-bar";
 import { WalletConnectModal } from "@/components/wallet-connect-modal";
 import { ACTIVE_CONTRACT, ACTIVE_CONTRACT_ABI, isContractConfigured, targetChain } from "@/lib/base";
-import { BASE_ENERGY_COST, BURST, PACKS } from "@/lib/game-config";
-import type { GameSnapshot, TeamColor } from "@/lib/types";
+import { BASE_ENERGY_COST, BURST, CANVAS_WIDTH, COLOR_TO_ID, PACKS } from "@/lib/game-config";
+import type { GameSnapshot, PublicUserState, TeamColor } from "@/lib/types";
 
-const NOTIFICATION_LIMIT = 4;
+const NOTIFICATION_LIMIT = 12;
+const STATE_POLL_MS = 2_000;
+const OPTIMISTIC_PIXEL_TTL_MS = 4_000;
 
 async function postJson<T>(url: string, payload: Record<string, unknown>) {
   const response = await fetch(url, {
@@ -90,17 +92,70 @@ export function GameShell() {
     queryKey: ["game-state", walletAddress],
     queryFn: async () => {
       const params = walletAddress ? `?wallet=${walletAddress}` : "";
-      const response = await fetch(`/api/game/state${params}`);
+      const response = await fetch(`/api/game/state${params}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Unable to load game state.");
       return (await response.json()) as GameSnapshot;
     },
-    refetchInterval: 1_000,
+    refetchInterval: STATE_POLL_MS,
+    staleTime: STATE_POLL_MS - 200,
+    refetchOnWindowFocus: true,
   });
 
   const snapshot = stateQuery.data;
   const signedUser = snapshot?.user ?? null;
+
+  // Optimistic paint overlay: index -> { colorId, expiresAt }. Painted cells
+  // appear instantly on the client and are wiped once the next authoritative
+  // server snapshot reflects them (or after the TTL, whichever comes first).
+  const [optimisticPixels, setOptimisticPixels] = useState<
+    Map<number, { colorId: number; expiresAt: number }>
+  >(() => new Map());
+  // Optimistic pixel delta, applied locally between the request leaving the
+  // client and the server snapshot returning. Reset whenever the server-side
+  // user record reflects the new balance.
+  const [optimisticPixelsDelta, setOptimisticPixelsDelta] = useState(0);
+  const lastServerPixelsRef = useRef<number | null>(null);
+
+  const optimisticCanvas = useMemo(() => {
+    if (!snapshot || optimisticPixels.size === 0) return snapshot?.canvas ?? [];
+    const next = snapshot.canvas.slice();
+    for (const [index, entry] of optimisticPixels) {
+      if (index >= 0 && index < next.length) next[index] = entry.colorId;
+    }
+    return next;
+  }, [snapshot, optimisticPixels]);
+
+  // Reconcile optimistic state once the authoritative snapshot reflects it.
+  useEffect(() => {
+    if (!snapshot) return;
+
+    if (optimisticPixels.size > 0) {
+      const now = Date.now();
+      let changed = false;
+      const next = new Map(optimisticPixels);
+      for (const [index, entry] of optimisticPixels) {
+        if (snapshot.canvas[index] === entry.colorId || now > entry.expiresAt) {
+          next.delete(index);
+          changed = true;
+        }
+      }
+      if (changed) setOptimisticPixels(next);
+    }
+
+    // Reset the pixel delta whenever the server-side balance has moved (either
+    // because our paint landed, or because of a chain credit / refund). This
+    // also handles the rollback path: if the server rejected our paint, the
+    // server pixels will not have decreased so we still reset the delta to 0.
+    const serverPixels = signedUser?.pixels ?? null;
+    if (serverPixels !== null && lastServerPixelsRef.current !== serverPixels) {
+      lastServerPixelsRef.current = serverPixels;
+      if (optimisticPixelsDelta !== 0) setOptimisticPixelsDelta(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot]);
+
   const energyValue = signedUser?.energy ?? 0;
-  const pixelBalance = signedUser?.pixels ?? 0;
+  const pixelBalance = Math.max(0, (signedUser?.pixels ?? 0) + optimisticPixelsDelta);
   const burstSecondsLeft =
     signedUser?.burstUntil && snapshot?.now
       ? Math.max(0, Math.ceil((signedUser.burstUntil - snapshot.now) / 1_000))
@@ -280,18 +335,65 @@ export function GameShell() {
 
     lastOutOfEnergyRef.current = false;
 
+    if (pixelBalance <= 0) {
+      pushNotification({ kind: "pixels", team: selectedColor, text: "Out of pixels — buy more to keep painting." });
+      setShakeKey((current) => current + 1);
+      return;
+    }
+
+    setHasPainted(true);
+
+    // Optimistic UI: paint the pixel locally before the server confirms. This
+    // gets rolled back inside the catch-block (or by the next snapshot) if the
+    // server rejects.
+    const colorId = COLOR_TO_ID[selectedColor];
+    const cellIndex = y * CANVAS_WIDTH + x;
+    const expiresAt = Date.now() + OPTIMISTIC_PIXEL_TTL_MS;
+    setOptimisticPixels((current) => {
+      const next = new Map(current);
+      next.set(cellIndex, { colorId, expiresAt });
+      return next;
+    });
+    setOptimisticPixelsDelta((current) => current - 1);
+
     try {
       setBusyKey("paint");
-      setHasPainted(true);
 
       if (!signedUser || signedUser.color !== selectedColor) {
         await syncSignedSession(selectedColor, "signin");
       }
 
-      await postJson<{ message: string }>("/api/game/paint", { x, y });
-      await refreshState();
+      const result = await postJson<{ message: string; user?: PublicUserState }>(
+        "/api/game/paint",
+        { x, y },
+      );
+
+      // If the server returned the latest user record, write it directly into
+      // the cache so pixel/energy reconcile without waiting for the next poll.
+      if (result.user && walletAddress) {
+        queryClient.setQueryData<GameSnapshot | undefined>(
+          ["game-state", walletAddress],
+          (current) => (current ? { ...current, user: result.user! } : current),
+        );
+        setOptimisticPixelsDelta(0);
+        lastServerPixelsRef.current = result.user.pixels;
+      }
+
+      // Refetch authoritative full state (canvas + round + counts).
+      void refreshState();
     } catch (error) {
+      // Rollback: drop the optimistic cell and the local pixel delta. The next
+      // snapshot will reflect the real server state.
+      setOptimisticPixels((current) => {
+        if (!current.has(cellIndex)) return current;
+        const next = new Map(current);
+        next.delete(cellIndex);
+        return next;
+      });
+      setOptimisticPixelsDelta((current) => current + 1);
       pushNotification({ kind: "system", text: readError(error, "Paint failed.") });
+      setShakeKey((current) => current + 1);
+      void refreshState();
     } finally {
       setBusyKey(null);
     }
@@ -456,7 +558,7 @@ export function GameShell() {
           <div className="os-canvas-wrapper">
             <CanvasWindow
               busyTeam={busyTeam}
-              canvas={snapshot?.canvas ?? []}
+              canvas={optimisticCanvas}
               onPaint={(x, y) => void paintPixel(x, y)}
               onSelectTeam={(team) => void chooseTeam(team)}
               paintDisabled={paintDisabled}
