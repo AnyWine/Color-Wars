@@ -623,7 +623,7 @@ button { font: inherit; }
 }
 
 .canvas-window-body {
-  padding: 6px;
+  padding: 4px;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -770,10 +770,14 @@ button { font: inherit; }
 /* ============================================================ */
 
 .notifications-window { flex-shrink: 0; }
+.notifications-window .win-header {
+  min-height: 24px;
+  padding: 2px 8px;
+}
 .notifications-window .win-body {
-  gap: 4px;
-  padding: 6px 8px;
-  height: 70px;
+  gap: 2px;
+  padding: 4px 8px;
+  height: 40px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
