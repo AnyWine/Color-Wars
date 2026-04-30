@@ -626,12 +626,18 @@ button { font: inherit; }
   padding: 6px;
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .canvas-stage {
   position: relative;
-  width: 100%;
-  flex: 1 1 auto;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  flex: 0 1 auto;
   min-height: 0;
   border: 2px solid var(--line);
   background:
@@ -767,7 +773,7 @@ button { font: inherit; }
 .notifications-window .win-body {
   gap: 4px;
   padding: 6px 8px;
-  height: 140px;
+  height: 70px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -1741,7 +1747,7 @@ button { font: inherit; }
   .notifications-window .win-header { display: none; }
   .notifications-window .win-body {
     padding: 4px 6px;
-    height: 100px;
+    height: 50px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
