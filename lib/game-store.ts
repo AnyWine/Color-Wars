@@ -35,7 +35,7 @@ import type {
 import type { Hex } from "viem";
 
 type PaintResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; user: PublicUserState; targets: Array<[number, number]> }
   | { ok: false; message: string };
 
 type StoreState = {
@@ -353,6 +353,13 @@ export const gameStore = {
       return { ok: false, message: "Overheated. Cooldown is active while energy refills fast." };
     }
 
+    // Explicit guard: never allow painting at zero or negative energy, even if
+    // the cost-based check below would also catch it. Clients should rely on
+    // server enforcement, not their own energy estimate.
+    if (user.energy <= 0) {
+      return { ok: false, message: "Out of energy." };
+    }
+
     if (user.pixels <= 0) {
       return { ok: false, message: "You are out of pixels. Buy a pack first." };
     }
@@ -404,6 +411,8 @@ export const gameStore = {
     return {
       ok: true,
       message: burstActive && targets.length > 1 ? `${targets.length} pixels placed.` : "Pixel placed.",
+      user: snapshotUser(user, now),
+      targets,
     };
   },
 
@@ -488,19 +497,47 @@ export const gameStore = {
   },
 };
 
+type PersistedShape = {
+  round: RoundState;
+  canvas: number[];
+  owners: (string | null)[];
+  updatedAt: number[];
+  users: Array<[string, UserRecord]>;
+};
+
+function isPersistedShape(value: unknown): value is PersistedShape {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<PersistedShape>;
+  return (
+    Array.isArray(candidate.canvas) &&
+    Array.isArray(candidate.owners) &&
+    Array.isArray(candidate.updatedAt) &&
+    Array.isArray(candidate.users) &&
+    typeof candidate.round === "object" &&
+    candidate.round !== null
+  );
+}
+
 registerGameStateBackend({
   snapshotForPersistence() {
-    return {
+    const shape: PersistedShape = {
       round: state.round,
       canvas: Array.from(state.canvas),
       owners: state.owners,
       updatedAt: state.updatedAt,
       users: Array.from(state.users.entries()),
     };
+    return shape;
   },
-  hydrateFromPersistence() {
-    // No-op until a real persistence driver is wired. Implementing this is
-    // intentionally deferred to keep the MVP behavior identical.
+  hydrateFromPersistence(payload: unknown) {
+    if (!isPersistedShape(payload)) return;
+    if (payload.canvas.length !== CANVAS_SIZE) return;
+
+    state.round = payload.round;
+    state.canvas = new Uint8Array(payload.canvas);
+    state.owners = payload.owners.slice(0, CANVAS_SIZE);
+    state.updatedAt = payload.updatedAt.slice(0, CANVAS_SIZE);
+    state.users = new Map(payload.users);
   },
   getSnapshot(walletAddress?: string | null) {
     return gameStore.getSnapshot(walletAddress ?? null);
