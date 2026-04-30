@@ -435,7 +435,16 @@ export function GameShell() {
         chainId: targetChain.id,
       });
 
-      await publicClient.waitForTransactionReceipt({ hash });
+      // Client-side receipt wait has a timeout so the UI never freezes
+      // indefinitely if the RPC is slow or the tx gets stuck. If it times
+      // out we still proceed to call the server (which will do its own
+      // waitForTransactionReceipt with a 30 s timeout as the authoritative
+      // check).
+      try {
+        await publicClient.waitForTransactionReceipt({ hash, timeout: 30_000 });
+      } catch {
+        /* ignore client-side timeout — server will verify */
+      }
       // Do NOT re-sign on purchase. The session cookie from initial sign-in
       // is reused for the server-side verification call below.
 
@@ -494,7 +503,13 @@ export function GameShell() {
         chainId: targetChain.id,
       });
 
-      await publicClient.waitForTransactionReceipt({ hash });
+      // Client wait bounded by 30 s so the UI never freezes; server still
+      // does its own authoritative waitForTransactionReceipt below.
+      try {
+        await publicClient.waitForTransactionReceipt({ hash, timeout: 30_000 });
+      } catch {
+        /* ignore client-side timeout — server will verify */
+      }
 
       // Server verifies the on-chain tx and activates burst. The updated user
       // record (with burstUntil) is patched into the cache directly; full
