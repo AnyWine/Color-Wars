@@ -22,19 +22,14 @@ import { getBackend } from "@/lib/game-state";
 
 const STATE_KEY = "colorwars:state:v1";
 
-const globalRef = globalThis as unknown as { __cwHydrated?: boolean };
+const globalRef = globalThis as unknown as { __cwHydratePromise?: Promise<void> };
 
 export function isHydrated(): boolean {
-  return Boolean(globalRef.__cwHydrated);
+  return Boolean(globalRef.__cwHydratePromise);
 }
 
-export async function hydrateOnce(): Promise<void> {
-  if (globalRef.__cwHydrated) return;
-  globalRef.__cwHydrated = true;
-
-  if (!redis.isConfigured()) {
-    return;
-  }
+async function doHydrate(): Promise<void> {
+  if (!redis.isConfigured()) return;
 
   try {
     const raw = await redis.get(STATE_KEY);
@@ -46,6 +41,20 @@ export async function hydrateOnce(): Promise<void> {
   } catch (error) {
     logger.warn("state_hydrate_failed", { error: (error as Error)?.message });
   }
+}
+
+/**
+ * Idempotent: starts hydration on the first call and shares the same promise
+ * with every subsequent caller until it resolves. Concurrent cold-start
+ * requests all await the same hydration before mutating game state, so a
+ * later-arriving request can never run on the empty default while the Redis
+ * fetch is still in flight.
+ */
+export function hydrateOnce(): Promise<void> {
+  if (!globalRef.__cwHydratePromise) {
+    globalRef.__cwHydratePromise = doHydrate();
+  }
+  return globalRef.__cwHydratePromise;
 }
 
 export async function save(): Promise<void> {
