@@ -5,9 +5,11 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { ensurePurchaseListener } from "@/lib/pixel-purchase-listener";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { hydrateOnce } from "@/lib/store/persist";
 
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
+    await hydrateOnce();
     ensurePurchaseListener();
     ensureBurstListener();
     const session = verifySession(request.cookies.get(SESSION_COOKIE)?.value);

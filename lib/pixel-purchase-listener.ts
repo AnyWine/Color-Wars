@@ -2,6 +2,7 @@ import type { Hex } from "viem";
 
 import { ACTIVE_CONTRACT, ACTIVE_CONTRACT_ABI, baseSepoliaPublicClient, isContractConfigured } from "@/lib/base";
 import { gameStore } from "@/lib/game-store";
+import { save } from "@/lib/store/persist";
 
 type ListenerGlobals = typeof globalThis & {
   __colorWarsPurchaseListenerStarted?: boolean;
@@ -57,7 +58,8 @@ export function ensurePurchaseListener() {
         if (!user || pixels <= 0) continue;
 
         processedTxHashes.add(txHash);
-        gameStore.creditPurchasedPixels(user, pixels, txHash);
+        const result = gameStore.creditPurchasedPixels(user, pixels, txHash);
+        if (result.ok) void save();
       }
     },
   });

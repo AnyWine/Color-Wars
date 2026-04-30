@@ -4,6 +4,7 @@ import { ACTIVE_CONTRACT, baseSepoliaPublicClient, isContractConfigured } from "
 import { BURST } from "@/lib/game-config";
 import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
+import { save } from "@/lib/store/persist";
 
 type ListenerGlobals = typeof globalThis & {
   __cwBurstListenerStarted?: boolean;
@@ -59,6 +60,7 @@ export function ensureBurstListener() {
           if (receipt.status !== "success") continue;
           processed.add(tx.hash);
           const result = gameStore.activateBurstFromChain(tx.from);
+          if (result.ok) void save();
           logger.info("burst_activated_from_chain", {
             wallet: tx.from,
             txHash: tx.hash,

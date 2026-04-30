@@ -5,7 +5,9 @@ import { consumeNonce } from "@/lib/auth-nonce";
 import { TEAM_ORDER } from "@/lib/game-config";
 import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
+import { consumeToken } from "@/lib/rate-limit";
 import { issueSession } from "@/lib/session";
+import { hydrateOnce, markDirty } from "@/lib/store/persist";
 import type { TeamColor } from "@/lib/types";
 
 type AuthPayload = {
@@ -48,8 +50,12 @@ export async function POST(request: NextRequest) {
       return fail("Signed message is required.", 400, body.walletAddress);
     }
 
+    if (!consumeToken(`auth:${body.walletAddress.toLowerCase()}`, 8, 4)) {
+      return fail("Too many auth attempts. Slow down.", 429, body.walletAddress);
+    }
+
     const nonce = extractNonce(body.message);
-    if (!nonce || !consumeNonce(body.walletAddress, nonce)) {
+    if (!nonce || !(await consumeNonce(body.walletAddress, nonce))) {
       return fail("Auth nonce invalid or expired.", 401, body.walletAddress);
     }
 
@@ -67,7 +73,9 @@ export async function POST(request: NextRequest) {
       return fail("Signature verification failed.", 401, body.walletAddress);
     }
 
+    await hydrateOnce();
     const user = gameStore.authenticate(body.walletAddress, body.color, body.message);
+    markDirty();
     const { cookie } = issueSession({ wallet: body.walletAddress, color: body.color });
 
     logger.info("auth_success", { wallet: body.walletAddress, color: body.color });
