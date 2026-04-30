@@ -12,6 +12,7 @@ import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
+import { claimTxHash, releaseTxHash } from "@/lib/store/tx-claim";
 
 type BurstPayload = {
   txHash?: unknown;
@@ -19,14 +20,6 @@ type BurstPayload = {
 
 const TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/;
 const BURST_VALUE_WEI = parseEther(BURST.priceEth);
-
-const globalRef = globalThis as unknown as {
-  __cwBurstProcessedTxHashes?: Set<Hex>;
-};
-if (!globalRef.__cwBurstProcessedTxHashes) {
-  globalRef.__cwBurstProcessedTxHashes = new Set<Hex>();
-}
-const processed = globalRef.__cwBurstProcessedTxHashes;
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,10 +51,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Valid txHash is required." }, { status: 400 });
     }
     const hash = txHash as Hex;
-
-    if (processed.has(hash)) {
-      return NextResponse.json({ ok: false, message: "Burst already credited for this tx." }, { status: 409 });
-    }
 
     let receipt;
     try {
@@ -117,11 +106,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Atomic cross-lambda dedupe: only the first request to claim this hash
+    // will continue past this point. Other lambdas / retries get 409.
+    const claim = await claimTxHash("burst", hash);
+    if (claim === "already-processed") {
+      return NextResponse.json(
+        { ok: false, message: "Burst already credited for this tx." },
+        { status: 409 },
+      );
+    }
+
     await refreshFromPersistence();
     const result = gameStore.activateBurstFromChain(session.wallet);
     if (result.ok) {
-      processed.add(hash);
       markDirty();
+    } else {
+      // Game-store rejected the credit (shouldn't normally happen — burst is
+      // not idempotency-checked there). Release the lock so a legitimate
+      // retry isn't blocked forever.
+      await releaseTxHash("burst", hash);
     }
 
     const snapshot = gameStore.getSnapshot(session.wallet);

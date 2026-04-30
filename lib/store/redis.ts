@@ -116,4 +116,51 @@ export const redis = {
     const parsed = Number(result);
     return Number.isFinite(parsed) ? parsed : null;
   },
+
+  /**
+   * Atomically read both keys in a single Lua call. Returns `[state, version]`.
+   * Used for hydration to avoid the race where state is read at version N and
+   * the version counter is then read at version N+1 (a concurrent save snuck
+   * in between).
+   */
+  async getStateAndVersion(
+    stateKey: string,
+    versionKey: string,
+  ): Promise<{ state: string | null; version: number }> {
+    const result = await command([
+      "EVAL",
+      "return {redis.call('GET',KEYS[1]), redis.call('GET',KEYS[2])};",
+      2,
+      stateKey,
+      versionKey,
+    ]);
+    if (!Array.isArray(result)) return { state: null, version: 0 };
+    const [rawState, rawVersion] = result as [unknown, unknown];
+    const version =
+      typeof rawVersion === "string" && Number.isFinite(Number(rawVersion))
+        ? Number(rawVersion)
+        : 0;
+    return {
+      state: typeof rawState === "string" ? rawState : null,
+      version,
+    };
+  },
+
+  /**
+   * Atomic claim of a one-shot key. Returns true if the key was just created
+   * (i.e. the caller is the first to claim it), false if another caller had
+   * already claimed it. Used to dedupe on-chain transaction hashes across
+   * lambda instances.
+   */
+  async claim(key: string, ttlSeconds: number): Promise<boolean> {
+    const result = await command([
+      "SET",
+      key,
+      "1",
+      "NX",
+      "EX",
+      String(ttlSeconds),
+    ]);
+    return result === "OK";
+  },
 };

@@ -53,21 +53,23 @@ async function loadFromRedis(): Promise<number> {
   const backend = getBackend();
   if (!backend) return 0;
 
-  const raw = await redis.get(STATE_KEY);
-  if (!raw) return 0;
+  // Atomic read of both the state payload and the version counter in a single
+  // Lua call so a concurrent save can't slip a version bump in between (which
+  // would set localVersion to N+1 while in-memory state is still version N).
+  const { state, version } = await redis.getStateAndVersion(STATE_KEY, VERSION_KEY);
+  if (!state) return 0;
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(state);
   } catch (error) {
     logger.warn("state_parse_failed", { error: (error as Error)?.message });
     return 0;
   }
 
   backend.hydrateFromPersistence(parsed);
-  const version = (await redis.getNumber(VERSION_KEY)) ?? 0;
   setLocalVersion(version);
-  logger.info("state_hydrated", { bytes: raw.length, version });
+  logger.info("state_hydrated", { bytes: state.length, version });
   return version;
 }
 

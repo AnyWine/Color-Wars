@@ -13,20 +13,13 @@ import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
+import { claimTxHash, releaseTxHash } from "@/lib/store/tx-claim";
 
 type PurchasePayload = {
   txHash?: unknown;
 };
 
 const TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/;
-
-const globalRef = globalThis as unknown as {
-  __cwPurchaseProcessedTxHashes?: Set<Hex>;
-};
-if (!globalRef.__cwPurchaseProcessedTxHashes) {
-  globalRef.__cwPurchaseProcessedTxHashes = new Set<Hex>();
-}
-const processed = globalRef.__cwPurchaseProcessedTxHashes;
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,13 +57,6 @@ export async function POST(request: NextRequest) {
       );
     }
     const hash = txHash as Hex;
-
-    if (processed.has(hash)) {
-      return NextResponse.json(
-        { ok: false, message: "Purchase already credited for this tx." },
-        { status: 409 },
-      );
-    }
 
     let receipt;
     try {
@@ -130,11 +116,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Atomic cross-lambda dedupe before crediting. Concurrent re-submissions
+    // of the same hash on different lambdas all race for this single Redis
+    // claim and only one wins.
+    const claim = await claimTxHash("purchase", hash);
+    if (claim === "already-processed") {
+      return NextResponse.json(
+        { ok: false, message: "Purchase already credited for this tx." },
+        { status: 409 },
+      );
+    }
+
     await refreshFromPersistence();
     const result = gameStore.creditPurchasedPixels(session.wallet, pack.px, hash);
     if (result.ok) {
-      processed.add(hash);
       markDirty();
+    } else {
+      // Game-store rejected (e.g. its own per-user dedupe fired). Release the
+      // Redis claim so a legitimate retry isn't blocked.
+      await releaseTxHash("purchase", hash);
     }
 
     const snapshot = gameStore.getSnapshot(session.wallet);
