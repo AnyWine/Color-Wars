@@ -53,8 +53,10 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: [OG_IMAGE],
   },
+  // base:app_id is rendered as a raw <meta> tag in <head> below so Base's
+  // verifier sees it as plain HTML at the top of <head>, not as a Next.js-
+  // generated metadata node mixed in with the Farcaster JSON embeds.
   other: {
-    "base:app_id": "69f098e9495d95989c836e2c",
     "fc:miniapp": miniAppEmbed,
     "fc:frame": miniAppEmbed,
   },
@@ -67,6 +69,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/*
+          Raw Base verification meta — kept outside the Next.js metadata API
+          so it renders as plain, unencoded HTML at the top of <head> where
+          Base's verifier can parse it without interference from the
+          Farcaster JSON embeds that follow.
+        */}
+        <meta name="base:app_id" content="69f098e9495d95989c836e2c" />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>
