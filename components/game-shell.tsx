@@ -368,8 +368,11 @@ export function GameShell() {
         { x, y },
       );
 
-      // If the server returned the latest user record, write it directly into
-      // the cache so pixel/energy reconcile without waiting for the next poll.
+      // Patch the latest user record straight into the cache (pixels, energy,
+      // burstUntil) so the HUD reconciles without waiting for the next poll.
+      // Do NOT trigger a full state refetch here — the 2 s polling cycle will
+      // pull the new canvas. Refetching on every click adds 200–800 ms of UI
+      // delay for no gameplay benefit.
       if (result.user && walletAddress) {
         queryClient.setQueryData<GameSnapshot | undefined>(
           ["game-state", walletAddress],
@@ -378,9 +381,6 @@ export function GameShell() {
         setOptimisticPixelsDelta(0);
         lastServerPixelsRef.current = result.user.pixels;
       }
-
-      // Refetch authoritative full state (canvas + round + counts).
-      void refreshState();
     } catch (error) {
       // Rollback: drop the optimistic cell and the local pixel delta. The next
       // snapshot will reflect the real server state.
@@ -393,7 +393,6 @@ export function GameShell() {
       setOptimisticPixelsDelta((current) => current + 1);
       pushNotification({ kind: "system", text: readError(error, "Paint failed.") });
       setShakeKey((current) => current + 1);
-      void refreshState();
     } finally {
       setBusyKey(null);
     }
@@ -433,12 +432,27 @@ export function GameShell() {
 
       await publicClient.waitForTransactionReceipt({ hash });
       await syncSignedSession(selectedColor, "purchase");
+
+      // Server verifies the on-chain receipt (PixelsPurchased event) and
+      // returns the updated user with the new pixel balance. Patch into
+      // cache directly; full state will catch up on the next 2 s poll.
+      const result = await postJson<{ message: string; user?: PublicUserState }>(
+        "/api/game/purchase",
+        { txHash: hash },
+      );
+      if (result.user && walletAddress) {
+        queryClient.setQueryData<GameSnapshot | undefined>(
+          ["game-state", walletAddress],
+          (current) => (current ? { ...current, user: result.user! } : current),
+        );
+        setExpectedPixelBalance(null);
+      }
+
       pushNotification({
         kind: "pixels",
         team: selectedColor,
         text: `Bought +${pack.px} pixels`,
       });
-      await refreshState();
     } catch (error) {
       setExpectedPixelBalance(null);
       pushNotification({ kind: "system", text: readError(error, "Pack purchase failed.") });
@@ -477,11 +491,25 @@ export function GameShell() {
       });
 
       await publicClient.waitForTransactionReceipt({ hash });
+
+      // Server verifies the on-chain tx and activates burst. The updated user
+      // record (with burstUntil) is patched into the cache directly; full
+      // state catches up on the next 2 s poll.
+      const result = await postJson<{ message: string; user?: PublicUserState }>(
+        "/api/game/burst",
+        { txHash: hash },
+      );
+      if (result.user && walletAddress) {
+        queryClient.setQueryData<GameSnapshot | undefined>(
+          ["game-state", walletAddress],
+          (current) => (current ? { ...current, user: result.user! } : current),
+        );
+      }
+
       pushNotification({
         kind: "system",
-        text: "Burst payment confirmed. Activating shortly…",
+        text: "Burst is live for 60 s — paint hard!",
       });
-      await refreshState();
     } catch (error) {
       pushNotification({ kind: "system", text: readError(error, "Burst activation failed.") });
     } finally {

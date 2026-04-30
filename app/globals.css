@@ -764,7 +764,15 @@ button { font: inherit; }
 /* ============================================================ */
 
 .notifications-window { flex-shrink: 0; }
-.notifications-window .win-body { gap: 4px; padding: 6px 8px; }
+.notifications-window .win-body {
+  gap: 4px;
+  padding: 6px 8px;
+  height: 140px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 .notification-list {
   margin: 0;
@@ -773,7 +781,8 @@ button { font: inherit; }
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 132px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -1730,8 +1739,19 @@ button { font: inherit; }
   .notifications-window:empty,
   .notifications-window[data-empty="true"] { display: none; }
   .notifications-window .win-header { display: none; }
-  .notifications-window .win-body { padding: 4px 6px; }
-  .notification-list { max-height: 96px; overflow-y: auto; }
+  .notifications-window .win-body {
+    padding: 4px 6px;
+    height: 100px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .notification-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
   .notification {
     padding: 0;
     background: transparent;
