@@ -7,7 +7,7 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { issueSession } from "@/lib/session";
-import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
+import { refreshFromPersistence, save } from "@/lib/store/persist";
 import type { TeamColor } from "@/lib/types";
 
 type AuthPayload = {
@@ -75,7 +75,13 @@ export async function POST(request: NextRequest) {
 
     await refreshFromPersistence();
     const user = gameStore.authenticate(body.walletAddress, body.color, body.message);
-    markDirty();
+    // Save synchronously here (instead of the usual `markDirty()` deferred
+    // save). Auth must reach Redis before we respond, otherwise the very next
+    // paint click can land on a different lambda that hasn't seen this user's
+    // team yet — which on the old code path made paint reject ("Choose a
+    // team") or stamp the wrong color, and from the user's perspective looked
+    // like "wallet asks for signature on every click" + "pink turns blue".
+    await save();
     const { cookie } = issueSession({ wallet: body.walletAddress, color: body.color });
 
     logger.info("auth_success", { wallet: body.walletAddress, color: body.color });

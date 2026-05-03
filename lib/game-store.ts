@@ -328,7 +328,7 @@ export const gameStore = {
     };
   },
 
-  paint(walletAddress: string, x: number, y: number): PaintResult {
+  paint(walletAddress: string, x: number, y: number, sessionColor?: TeamColor): PaintResult {
     const now = Date.now();
     syncRound(now);
 
@@ -340,9 +340,21 @@ export const gameStore = {
       return { ok: false, message: "Pixel is outside the canvas." };
     }
 
-    const user = state.users.get(normalizeWallet(walletAddress));
+    // The session cookie is HMAC-signed and carries the user's authenticated
+    // team. Trust it as the authoritative team for paints — falling back to
+    // whatever in-memory user.color says is racy on Vercel because a different
+    // lambda may not have seen the recent /auth save yet. Using the session
+    // color also means a paint never silently uses the wrong color even if the
+    // in-memory user record is missing for any reason.
+    const user = sessionColor
+      ? ensureUser(walletAddress, sessionColor)
+      : state.users.get(normalizeWallet(walletAddress));
     if (!user) {
       return { ok: false, message: "Sign in with your wallet first." };
+    }
+
+    if (sessionColor) {
+      user.color = sessionColor;
     }
 
     if (!user.color) {
@@ -446,7 +458,7 @@ export const gameStore = {
     };
   },
 
-  activateBurstFromChain(walletAddress: string) {
+  activateBurstFromChain(walletAddress: string, sessionColor?: TeamColor) {
     const now = Date.now();
     syncRound(now);
 
@@ -454,7 +466,8 @@ export const gameStore = {
       return { ok: false, message: "Burst can only be activated during a live round." as const };
     }
 
-    const user = ensureUser(walletAddress);
+    const user = ensureUser(walletAddress, sessionColor);
+    if (sessionColor) user.color = sessionColor;
     if (isBurstActive(user, now)) {
       return { ok: false, message: "Burst is already active." as const };
     }

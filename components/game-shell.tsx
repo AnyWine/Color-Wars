@@ -45,6 +45,7 @@ async function postJson<T>(url: string, payload: Record<string, unknown>) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    credentials: "same-origin",
   });
 
   const data = (await response.json()) as T & { ok?: boolean; message?: string };
@@ -382,10 +383,13 @@ export function GameShell() {
     try {
       setBusyKey("paint");
 
-      if (!signedUser || signedUser.color !== selectedColor) {
-        await syncSignedSession(selectedColor, "signin");
-      }
-
+      // Sign in exactly once per (wallet, team) combo — when the user picks
+      // a team in `chooseTeam`. Don't re-sign here: comparing
+      // `signedUser.color !== selectedColor` against the polled snapshot can
+      // see stale data (Vercel cold-starts a fresh lambda that hasn't seen
+      // the just-saved auth yet) and triggers a wallet popup on every click.
+      // If there really is no session (server rejects with 401), the catch
+      // block surfaces it; the user can re-pick the team to re-auth.
       const result = await postJson<{ message: string; user?: PublicUserState }>(
         "/api/game/paint",
         { x, y },

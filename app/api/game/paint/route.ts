@@ -46,7 +46,13 @@ export async function POST(request: NextRequest) {
     }
 
     await refreshFromPersistence();
-    const result = gameStore.paint(session.wallet, x, y);
+    const result = gameStore.paint(session.wallet, x, y, session.color);
+    logger.info("paint", {
+      wallet: session.wallet,
+      sessionColor: session.color,
+      ok: result.ok,
+      message: result.ok ? undefined : result.message,
+    });
     if (result.ok) markDirty();
 
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });

@@ -10,7 +10,7 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
+import { refreshFromPersistence, save } from "@/lib/store/persist";
 import { claimTxHash, releaseTxHash } from "@/lib/store/tx-claim";
 
 type BurstPayload = {
@@ -110,9 +110,12 @@ export async function POST(request: NextRequest) {
     }
 
     await refreshFromPersistence();
-    const result = gameStore.activateBurstFromChain(session.wallet);
+    const result = gameStore.activateBurstFromChain(session.wallet, session.color);
     if (result.ok) {
-      markDirty();
+      // Save synchronously so the very next paint click — which can land on a
+      // different lambda — actually sees the new burstUntil and applies the
+      // burst multiplier instead of single-pixel paints.
+      await save();
     } else {
       // Game-store rejected the credit (shouldn't normally happen — burst is
       // not idempotency-checked there). Release the lock so a legitimate
