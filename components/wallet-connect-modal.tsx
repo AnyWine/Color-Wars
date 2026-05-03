@@ -16,6 +16,7 @@ const KNOWN_LABELS: Record<string, string> = {
   metaMask: "MetaMask",
   injected: "Browser Wallet",
   coinbaseWalletSDK: "Coinbase Wallet",
+  farcaster: "Base / Farcaster",
 };
 
 function labelFor(connector: Connector) {

@@ -34,6 +34,7 @@ import { WalletConnectModal } from "@/components/wallet-connect-modal";
 import { ACTIVE_CONTRACT, ACTIVE_CONTRACT_ABI, isContractConfigured, targetChain } from "@/lib/base";
 import { BASE_ENERGY_COST, BURST, CANVAS_WIDTH, COLOR_TO_ID, PACKS } from "@/lib/game-config";
 import type { GameSnapshot, PublicUserState, TeamColor } from "@/lib/types";
+import { useFarcasterMiniApp } from "@/lib/use-farcaster-mini-app";
 
 const NOTIFICATION_LIMIT = 12;
 const STATE_POLL_MS = 2_000;
@@ -90,6 +91,12 @@ export function GameShell() {
   const { sendTransactionAsync } = useSendTransaction();
 
   const walletAddress = address ?? null;
+
+  // Farcaster / Base Mini App auto-connect + ready() handshake. No-op outside
+  // of a Mini App. Inside one (e.g. when the user opens the URL through Base
+  // App), the wallet auto-connects via the host SDK so the user does not see
+  // the wallet picker modal.
+  const { isMiniApp } = useFarcasterMiniApp(Boolean(walletAddress));
 
   const stateQuery = useQuery<GameSnapshot>({
     queryKey: ["game-state", walletAddress],
@@ -563,7 +570,7 @@ export function GameShell() {
 
       <WalletConnectModal
         busyConnectorId={busyConnectorId}
-        connectors={connectors}
+        connectors={connectors.filter((c) => (isMiniApp ? c.id === "farcaster" : c.id !== "farcaster"))}
         onClose={() => setConnectModalOpen(false)}
         onSelect={(connector) => void connectWith(connector)}
         open={connectModalOpen}

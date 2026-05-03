@@ -1,3 +1,4 @@
+import { farcasterMiniApp } from "@farcaster/miniapp-wagmi-connector";
 import type { Address } from "viem";
 import { createPublicClient } from "viem";
 import { createConfig, http, injected } from "wagmi";
@@ -27,12 +28,16 @@ export const baseSepoliaPublicClient = createPublicClient({
 export const wagmiConfig = createConfig({
   chains: supportedChains,
   connectors: [
-    // The standalone `metaMask()` connector pulls in `@metamask/connect-evm`
-    // as a transitive dep which fails to resolve in some mobile WebView
-    // bundles ("Cannot find module '@metamask/connect-evm'") and bricks the
-    // sign-in flow. MetaMask Mobile already injects `window.ethereum` inside
-    // its in-app browser, so the standard `injected()` connector picks it up
-    // with the same UX and one fewer point of failure.
+    // Farcaster / Base Mini App context: when the page is opened inside the
+    // Base App or Warpcast, this connector talks to the host's injected EIP-1193
+    // provider via @farcaster/miniapp-sdk. Outside a Mini App it is harmless
+    // (just never connects). It is listed first so auto-reconnect picks it up
+    // before the regular injected() probes window.ethereum.
+    farcasterMiniApp(),
+    // Regular browsers (and MetaMask / Coinbase Wallet in-app browsers, which
+    // both inject window.ethereum). The standalone metaMask() connector is
+    // intentionally NOT used: it pulls in @metamask/connect-evm which fails to
+    // resolve inside some mobile WebView bundles.
     injected({ shimDisconnect: true }),
     coinbaseWallet({
       appName: "Base Color Wars",
