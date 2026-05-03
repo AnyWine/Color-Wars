@@ -7,7 +7,7 @@ import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
 import { issueSession } from "@/lib/session";
-import { markDirty, refreshFromPersistence } from "@/lib/store/persist";
+import { refreshFromPersistence, save } from "@/lib/store/persist";
 import type { TeamColor } from "@/lib/types";
 
 type AuthPayload = {
@@ -75,7 +75,13 @@ export async function POST(request: NextRequest) {
 
     await refreshFromPersistence();
     const user = gameStore.authenticate(body.walletAddress, body.color, body.message);
-    markDirty();
+    // Save synchronously instead of the usual deferred markDirty(). Auth
+    // must reach Redis before this response leaves, otherwise the very next
+    // paint click can land on a different Vercel lambda that hasn't yet
+    // observed the save and rejects with "Sign in first" / "Choose a team".
+    // From the user's perspective that looked like the wallet popping up on
+    // every click. Synchronous save closes the cross-lambda race.
+    await save();
     const { cookie } = issueSession({ wallet: body.walletAddress, color: body.color });
 
     logger.info("auth_success", { wallet: body.walletAddress, color: body.color });
