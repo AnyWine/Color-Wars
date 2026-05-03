@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAddress, verifyMessage } from "viem";
+import { isAddress, verifyMessage as verifyMessageUtil } from "viem";
 
 import { consumeNonce } from "@/lib/auth-nonce";
+import { basePublicClient, baseSepoliaPublicClient } from "@/lib/base";
 import { TEAM_ORDER } from "@/lib/game-config";
 import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
@@ -59,17 +60,66 @@ export async function POST(request: NextRequest) {
       return fail("Auth nonce invalid or expired.", 401, body.walletAddress);
     }
 
+    // Verify the signature. We have to handle three account types:
+    //   1. Externally Owned Accounts (EOA) — fast off-chain ECDSA recovery
+    //      via viem's pure utility.
+    //   2. Smart contract wallets (ERC-1271, e.g. Coinbase Smart Wallet,
+    //      Safe, Magic) — the wallet contract's `isValidSignature` must be
+    //      called on-chain. This requires a public client.
+    //   3. Pre-deployed smart wallets (ERC-6492) — same as above but the
+    //      signature is wrapped with the deploy init code so we can verify
+    //      before the wallet contract is actually on-chain. viem's public
+    //      client `verifyMessage` handles the unwrap.
+    //
+    // Smart wallets used inside Base App are typically deployed on Base
+    // mainnet, even when the user is interacting with our Sepolia game
+    // contract, so we try both chains and accept the signature if either
+    // verifies.
     let valid = false;
+    let verificationPath: "eoa" | "mainnet" | "sepolia" | "none" = "none";
+    let lastError: string | undefined;
     try {
-      valid = await verifyMessage({
+      valid = await verifyMessageUtil({
         address: body.walletAddress,
         message: body.message,
         signature: body.signature,
       });
-    } catch {
-      valid = false;
+      if (valid) verificationPath = "eoa";
+    } catch (error) {
+      lastError = (error as Error)?.message;
     }
     if (!valid) {
+      try {
+        valid = await basePublicClient.verifyMessage({
+          address: body.walletAddress,
+          message: body.message,
+          signature: body.signature,
+        });
+        if (valid) verificationPath = "mainnet";
+      } catch (error) {
+        lastError = (error as Error)?.message;
+      }
+    }
+    if (!valid) {
+      try {
+        valid = await baseSepoliaPublicClient.verifyMessage({
+          address: body.walletAddress,
+          message: body.message,
+          signature: body.signature,
+        });
+        if (valid) verificationPath = "sepolia";
+      } catch (error) {
+        lastError = (error as Error)?.message;
+      }
+    }
+    if (!valid) {
+      logger.warn("auth_signature_invalid", {
+        wallet: body.walletAddress,
+        signaturePrefix: body.signature.slice(0, 10),
+        signatureLength: body.signature.length,
+        messageLength: body.message.length,
+        error: lastError,
+      });
       return fail("Signature verification failed.", 401, body.walletAddress);
     }
 
@@ -84,7 +134,11 @@ export async function POST(request: NextRequest) {
     await save();
     const { cookie } = issueSession({ wallet: body.walletAddress, color: body.color });
 
-    logger.info("auth_success", { wallet: body.walletAddress, color: body.color });
+    logger.info("auth_success", {
+      wallet: body.walletAddress,
+      color: body.color,
+      verificationPath,
+    });
 
     const response = NextResponse.json({ ok: true, user });
     response.headers.set("Set-Cookie", cookie);
