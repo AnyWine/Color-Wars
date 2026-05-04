@@ -212,9 +212,17 @@ export function GameShell() {
   // still has a valid signed session for this wallet (cookie TTL 60 min),
   // restore the chosen team locally so the user is dropped straight back
   // into the game without re-signing.
+  //
+  // Gating on snapshot.sessionActive is critical — /api/game/state also
+  // returns user records via the ?wallet= query fallback even when no valid
+  // session cookie is present, so without this check we would silently
+  // restore selectedColor after disconnect or cookie expiry and trap the
+  // user (chooseTeam early-returns once selectedColor is set, so they could
+  // never re-sign in).
   useEffect(() => {
     if (selectedColor !== null) return;
     if (!walletAddress) return;
+    if (!snapshot?.sessionActive) return;
     const serverColor = signedUser?.color ?? null;
     if (
       serverColor &&
@@ -223,7 +231,7 @@ export function GameShell() {
     ) {
       setSelectedColor(serverColor);
     }
-  }, [selectedColor, signedUser, walletAddress]);
+  }, [selectedColor, signedUser, snapshot?.sessionActive, walletAddress]);
 
   // Burst activation notification
   useEffect(() => {
