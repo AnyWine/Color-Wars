@@ -78,6 +78,19 @@ export async function POST(request: NextRequest) {
     let valid = false;
     let verificationPath: "eoa" | "mainnet" | "sepolia" | "none" = "none";
     const errors: { stage: string; error: string }[] = [];
+    // Sanitize raw viem / provider errors before exposing them on the wire.
+    // viem's HttpRequestError embeds the full transport URL in the message
+    // (e.g. "URL: https://base-mainnet.g.alchemy.com/v2/<API_KEY>"), so we
+    // strip any http(s) URL substrings and collapse whitespace. The full
+    // unsanitized message is still written to server logs below.
+    const sanitizeError = (raw: unknown): string => {
+      const message = (raw as Error)?.message ?? "unknown";
+      return message
+        .replace(/https?:\/\/\S+/gi, "[redacted-url]")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 240);
+    };
     try {
       valid = await verifyMessageUtil({
         address: body.walletAddress,
@@ -86,7 +99,7 @@ export async function POST(request: NextRequest) {
       });
       if (valid) verificationPath = "eoa";
     } catch (error) {
-      errors.push({ stage: "eoa", error: (error as Error)?.message ?? "unknown" });
+      errors.push({ stage: "eoa", error: sanitizeError(error) });
     }
     if (!valid) {
       try {
@@ -97,7 +110,7 @@ export async function POST(request: NextRequest) {
         });
         if (valid) verificationPath = "mainnet";
       } catch (error) {
-        errors.push({ stage: "mainnet", error: (error as Error)?.message ?? "unknown" });
+        errors.push({ stage: "mainnet", error: sanitizeError(error) });
       }
     }
     if (!valid) {
@@ -109,7 +122,7 @@ export async function POST(request: NextRequest) {
         });
         if (valid) verificationPath = "sepolia";
       } catch (error) {
-        errors.push({ stage: "sepolia", error: (error as Error)?.message ?? "unknown" });
+        errors.push({ stage: "sepolia", error: sanitizeError(error) });
       }
     }
     if (!valid) {
