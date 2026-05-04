@@ -78,11 +78,13 @@ export async function POST(request: NextRequest) {
     let valid = false;
     let verificationPath: "eoa" | "mainnet" | "sepolia" | "none" = "none";
     const errors: { stage: string; error: string }[] = [];
-    // Sanitize raw viem / provider errors before exposing them on the wire.
-    // viem's HttpRequestError embeds the full transport URL in the message
-    // (e.g. "URL: https://base-mainnet.g.alchemy.com/v2/<API_KEY>"), so we
-    // strip any http(s) URL substrings and collapse whitespace. The full
-    // unsanitized message is still written to server logs below.
+    // Sanitize raw viem / provider errors before either logging them or
+    // exposing them on the wire. viem's HttpRequestError embeds the full
+    // transport URL in the message (e.g.
+    // "URL: https://base-mainnet.g.alchemy.com/v2/<API_KEY>"), so we strip
+    // any http(s) URL substrings and collapse whitespace. We deliberately
+    // also strip URLs from server-side logs — provider API keys should
+    // never end up in log output, defence in depth.
     const sanitizeError = (raw: unknown): string => {
       const message = (raw as Error)?.message ?? "unknown";
       return message
