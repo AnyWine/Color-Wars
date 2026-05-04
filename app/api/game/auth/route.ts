@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     // verifies.
     let valid = false;
     let verificationPath: "eoa" | "mainnet" | "sepolia" | "none" = "none";
-    let lastError: string | undefined;
+    const errors: { stage: string; error: string }[] = [];
     try {
       valid = await verifyMessageUtil({
         address: body.walletAddress,
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       });
       if (valid) verificationPath = "eoa";
     } catch (error) {
-      lastError = (error as Error)?.message;
+      errors.push({ stage: "eoa", error: (error as Error)?.message ?? "unknown" });
     }
     if (!valid) {
       try {
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         });
         if (valid) verificationPath = "mainnet";
       } catch (error) {
-        lastError = (error as Error)?.message;
+        errors.push({ stage: "mainnet", error: (error as Error)?.message ?? "unknown" });
       }
     }
     if (!valid) {
@@ -109,18 +109,30 @@ export async function POST(request: NextRequest) {
         });
         if (valid) verificationPath = "sepolia";
       } catch (error) {
-        lastError = (error as Error)?.message;
+        errors.push({ stage: "sepolia", error: (error as Error)?.message ?? "unknown" });
       }
     }
     if (!valid) {
-      logger.warn("auth_signature_invalid", {
-        wallet: body.walletAddress,
-        signaturePrefix: body.signature.slice(0, 10),
+      const diagnostic = {
+        signaturePrefix: body.signature.slice(0, 12),
         signatureLength: body.signature.length,
         messageLength: body.message.length,
-        error: lastError,
-      });
-      return fail("Signature verification failed.", 401, body.walletAddress);
+        baseRpcConfigured: Boolean(process.env.BASE_RPC_URL),
+        baseSepoliaRpcConfigured: Boolean(process.env.BASE_SEPOLIA_RPC_URL),
+        errors,
+      };
+      logger.warn("auth_signature_invalid", { wallet: body.walletAddress, ...diagnostic });
+      // Surface diagnostics in the response body so the issue can be triaged
+      // even when Vercel runtime logs are not accessible. No secret material
+      // is exposed — only signature shape and RPC error strings.
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Signature verification failed.",
+          diagnostic,
+        },
+        { status: 401 },
+      );
     }
 
     await refreshFromPersistence();
