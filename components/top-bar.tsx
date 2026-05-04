@@ -17,6 +17,7 @@ type TopBarProps = {
   walletAddress: string | null;
   walletBusy: boolean;
   onConnectWallet: () => void;
+  onDisconnectWallet: () => void;
 };
 
 function formatTime(seconds: number) {
@@ -38,6 +39,7 @@ export function TopBar({
   walletAddress,
   walletBusy,
   onConnectWallet,
+  onDisconnectWallet,
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -85,7 +87,16 @@ export function TopBar({
 
       <div className="topbar-wallet">
         {walletAddress ? (
-          <span className="wallet-chip">{formatAddress(walletAddress)}</span>
+          <button
+            className="wallet-chip wallet-chip--button"
+            disabled={walletBusy}
+            onClick={onDisconnectWallet}
+            title="Click to disconnect"
+            type="button"
+          >
+            <span className="wallet-chip-address">{formatAddress(walletAddress)}</span>
+            <span className="wallet-chip-disconnect" aria-hidden="true">×</span>
+          </button>
         ) : (
           <button
             className="wallet-connect"

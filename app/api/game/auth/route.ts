@@ -7,7 +7,7 @@ import { TEAM_ORDER } from "@/lib/game-config";
 import { gameStore } from "@/lib/game-store";
 import { logger } from "@/lib/logger";
 import { consumeToken } from "@/lib/rate-limit";
-import { issueSession } from "@/lib/session";
+import { clearSessionCookie, issueSession } from "@/lib/session";
 import { refreshFromPersistence, save } from "@/lib/store/persist";
 import type { TeamColor } from "@/lib/types";
 
@@ -147,4 +147,14 @@ export async function POST(request: NextRequest) {
     logger.error("auth_unexpected", { error: (error as Error)?.message });
     return NextResponse.json({ ok: false, message: "Internal error." }, { status: 500 });
   }
+}
+
+export async function DELETE() {
+  // Client-initiated logout: drop the session cookie so the next paint /
+  // burst / purchase request lands in the unauthenticated branch and
+  // forces the user to sign again. The on-chain wallet disconnect is
+  // handled separately by wagmi on the client.
+  const response = NextResponse.json({ ok: true });
+  response.headers.set("Set-Cookie", clearSessionCookie());
+  return response;
 }

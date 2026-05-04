@@ -6,6 +6,7 @@ import { parseEther } from "viem";
 import {
   useAccount,
   useConnect,
+  useDisconnect,
   usePublicClient,
   useSendTransaction,
   useSignMessage,
@@ -84,6 +85,7 @@ export function GameShell() {
   const queryClient = useQueryClient();
   const { address, chainId } = useAccount();
   const { connectAsync, connectors, isPending: isConnectPending } = useConnect();
+  const { disconnectAsync } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient({ chainId: targetChain.id });
@@ -206,6 +208,23 @@ export function GameShell() {
     setExpectedPixelBalance(null);
   }, [expectedPixelBalance, pixelBalance]);
 
+  // Session resume: when wagmi reconnects after a refresh and the server
+  // still has a valid signed session for this wallet (cookie TTL 60 min),
+  // restore the chosen team locally so the user is dropped straight back
+  // into the game without re-signing.
+  useEffect(() => {
+    if (selectedColor !== null) return;
+    if (!walletAddress) return;
+    const serverColor = signedUser?.color ?? null;
+    if (
+      serverColor &&
+      signedUser?.walletAddress &&
+      signedUser.walletAddress.toLowerCase() === walletAddress.toLowerCase()
+    ) {
+      setSelectedColor(serverColor);
+    }
+  }, [selectedColor, signedUser, walletAddress]);
+
   // Burst activation notification
   useEffect(() => {
     const burstUntil = signedUser?.burstUntil ?? null;
@@ -297,6 +316,32 @@ export function GameShell() {
   const openConnectModal = () => {
     if (walletAddress) return;
     setConnectModalOpen(true);
+  };
+
+  const disconnectWallet = async () => {
+    try {
+      await disconnectAsync();
+    } catch {
+      // wagmi sometimes throws if already disconnected — ignore.
+    }
+    // Drop the server-side session cookie so the next connect requires a
+    // fresh signature instead of silently resuming a different account.
+    try {
+      await fetch("/api/game/auth", {
+        method: "DELETE",
+        credentials: "include",
+        cache: "no-store",
+      });
+    } catch {
+      // Best-effort logout — even if the server call fails the client-side
+      // wallet has already been disconnected, so the user is safe.
+    }
+    setSelectedColor(null);
+    setHasPainted(false);
+    lastServerPixelsRef.current = null;
+    setOptimisticPixels(new Map());
+    setOptimisticPixelsDelta(0);
+    await queryClient.invalidateQueries({ queryKey: ["game-state"] });
   };
 
   const connectWith = async (connector: Connector) => {
@@ -566,6 +611,7 @@ export function GameShell() {
         walletAddress={walletAddress}
         walletBusy={isConnectPending || busyConnectorId !== null}
         onConnectWallet={openConnectModal}
+        onDisconnectWallet={() => void disconnectWallet()}
       />
 
       <WalletConnectModal
