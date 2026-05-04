@@ -69,6 +69,7 @@ export type GameSnapshot = {
   canvas: number[];
   totalUsers: number;
   user: PublicUserState | null;
+  sessionActive: boolean;
   leaderboard: ScoreboardRow[];
   notes: {
     purchases: string;

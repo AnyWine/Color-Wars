@@ -288,6 +288,24 @@ button { font: inherit; }
   padding: 3px 8px;
   letter-spacing: 0.04em;
 }
+.wallet-chip--button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 80ms ease, background 80ms ease;
+}
+.wallet-chip--button:hover:not(:disabled) {
+  transform: translate(1px, 1px);
+  background: var(--tone-pink, #ffd2ee);
+}
+.wallet-chip--button:disabled { opacity: 0.6; cursor: not-allowed; }
+.wallet-chip-disconnect {
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  line-height: 1;
+}
 
 .wallet-connect {
   font-family: "Press Start 2P", monospace;

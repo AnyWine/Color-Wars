@@ -316,6 +316,7 @@ export const gameStore = {
       canvas: [...state.canvas],
       totalUsers: state.users.size,
       user,
+      sessionActive: false,
       leaderboard: leaderboard(),
       notes: {
         purchases:
