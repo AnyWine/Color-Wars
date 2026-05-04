@@ -51,9 +51,22 @@ async function postJson<T>(url: string, payload: Record<string, unknown>) {
     credentials: "include",
   });
 
-  const data = (await response.json()) as T & { ok?: boolean; message?: string };
+  const data = (await response.json()) as T & {
+    ok?: boolean;
+    message?: string;
+    diagnostic?: Record<string, unknown>;
+  };
   if (!response.ok) {
-    throw new Error(data.message ?? "Request failed.");
+    const base = data.message ?? "Request failed.";
+    // When the server attaches diagnostic info (e.g. auth signature
+    // failures), surface a compact summary in the thrown error so it
+    // shows up in the on-screen toast — useful when the user has no
+    // access to Vercel runtime logs.
+    if (data.diagnostic) {
+      const summary = JSON.stringify(data.diagnostic).slice(0, 200);
+      throw new Error(`${base} (${summary})`);
+    }
+    throw new Error(base);
   }
 
   return data;
