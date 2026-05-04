@@ -25,6 +25,16 @@ export const baseSepoliaPublicClient = createPublicClient({
   transport: http(process.env.BASE_SEPOLIA_RPC_URL),
 });
 
+// Base mainnet client used only for signature verification (ERC-1271 /
+// ERC-6492). Smart wallets such as Coinbase Smart Wallet are typically
+// deployed on Base mainnet even when the user is interacting with our
+// Sepolia contract, so we have to be able to call `isValidSignature` on
+// the mainnet deployment.
+export const basePublicClient = createPublicClient({
+  chain: base,
+  transport: http(process.env.BASE_RPC_URL),
+});
+
 export const wagmiConfig = createConfig({
   chains: supportedChains,
   connectors: [
